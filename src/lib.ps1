@@ -64,49 +64,81 @@ function ConvertFrom-JsonText([string]$Text) {
     return , (ConvertFrom-Json -InputObject $Text -AsHashtable)
 }
 
-function ConvertTo-CompactJson($Value) {
-    Initialize-Json
-    if ($script:JsonMode -eq 'serializer') {
-        return $script:Serializer.Serialize($Value)
+$script:Invariant = [Globalization.CultureInfo]::InvariantCulture
+$script:ControlCharEvaluator = [System.Text.RegularExpressions.MatchEvaluator] {
+    param($match)
+    switch ([int][char]$match.Value) {
+        8 { return '\b' }
+        9 { return '\t' }
+        10 { return '\n' }
+        12 { return '\f' }
+        13 { return '\r' }
+        default { return '\u' + ([int][char]$match.Value).ToString('x4') }
     }
-    return ConvertTo-Json -InputObject $Value -Depth 100 -Compress
 }
 
-function Format-JsonScalar($Value) {
-    Initialize-Json
-    if ($script:JsonMode -ne 'serializer') {
-        return ConvertTo-Json -InputObject $Value -Compress
-    }
-    $text = $script:Serializer.Serialize($Value)
-    if ($Value -is [string]) {
-        $evaluator = [System.Text.RegularExpressions.MatchEvaluator] {
-            param($match)
-            $match.Groups[1].Value + [string][char][Convert]::ToInt32($match.Groups[2].Value, 16)
-        }
-        $text = [regex]::Replace($text, '(?<!\\)((?:\\\\)*)\\u00(3c|3e|26|27)', $evaluator, 'IgnoreCase')
-    }
-    return $text
+function Add-JsonString([System.Text.StringBuilder]$Builder, [string]$Text) {
+    $escaped = $Text.Replace('\', '\\').Replace('"', '\"')
+    $escaped = [regex]::Replace($escaped, '[\x00-\x1f]', $script:ControlCharEvaluator)
+    [void]$Builder.Append('"').Append($escaped).Append('"')
 }
 
-function Format-Json {
-    param($Value, [string]$Indent = '')
+function Add-JsonValue([System.Text.StringBuilder]$Builder, $Value, [string]$Indent, [bool]$Pretty) {
+    if ($null -eq $Value) { [void]$Builder.Append('null'); return }
+    if ($Value -is [string] -or $Value -is [char]) { Add-JsonString $Builder ([string]$Value); return }
+    if ($Value -is [bool]) {
+        if ($Value) { [void]$Builder.Append('true') } else { [void]$Builder.Append('false') }
+        return
+    }
     $next = $Indent + '  '
     if ($Value -is [System.Collections.IDictionary]) {
         $keys = @($Value.get_Keys())
-        if ($keys.Count -eq 0) { return '{}' }
-        $parts = foreach ($key in $keys) {
-            $next + (Format-JsonScalar ([string]$key)) + ': ' + (Format-Json -Value ($Value[$key]) -Indent $next)
+        if ($keys.Count -eq 0) { [void]$Builder.Append('{}'); return }
+        [void]$Builder.Append('{')
+        for ($i = 0; $i -lt $keys.Count; $i++) {
+            if ($i -gt 0) { [void]$Builder.Append(',') }
+            if ($Pretty) { [void]$Builder.Append("`n").Append($next) }
+            Add-JsonString $Builder ([string]$keys[$i])
+            if ($Pretty) { [void]$Builder.Append(': ') } else { [void]$Builder.Append(':') }
+            Add-JsonValue $Builder ($Value[$keys[$i]]) $next $Pretty
         }
-        return "{`n" + ($parts -join ",`n") + "`n" + $Indent + '}'
+        if ($Pretty) { [void]$Builder.Append("`n").Append($Indent) }
+        [void]$Builder.Append('}')
+        return
     }
     if ($Value -is [System.Collections.IList]) {
-        if ($Value.get_Count() -eq 0) { return '[]' }
-        $parts = foreach ($element in $Value) {
-            $next + (Format-Json -Value $element -Indent $next)
+        if ($Value.get_Count() -eq 0) { [void]$Builder.Append('[]'); return }
+        [void]$Builder.Append('[')
+        for ($i = 0; $i -lt $Value.get_Count(); $i++) {
+            if ($i -gt 0) { [void]$Builder.Append(',') }
+            if ($Pretty) { [void]$Builder.Append("`n").Append($next) }
+            Add-JsonValue $Builder ($Value[$i]) $next $Pretty
         }
-        return "[`n" + ($parts -join ",`n") + "`n" + $Indent + ']'
+        if ($Pretty) { [void]$Builder.Append("`n").Append($Indent) }
+        [void]$Builder.Append(']')
+        return
     }
-    return Format-JsonScalar $Value
+    if ($Value -is [double] -or $Value -is [single]) {
+        [void]$Builder.Append(([double]$Value).ToString('R', $script:Invariant))
+        return
+    }
+    if ($Value -is [decimal] -or $Value.GetType().IsPrimitive) {
+        [void]$Builder.Append([Convert]::ToString($Value, $script:Invariant))
+        return
+    }
+    Add-JsonString $Builder ([string]$Value)
+}
+
+function ConvertTo-CompactJson($Value) {
+    $builder = New-Object System.Text.StringBuilder
+    Add-JsonValue $builder $Value '' $false
+    return $builder.ToString()
+}
+
+function Format-Json($Value) {
+    $builder = New-Object System.Text.StringBuilder
+    Add-JsonValue $builder $Value '' $true
+    return $builder.ToString()
 }
 
 function New-Dict {

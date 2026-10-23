@@ -71,6 +71,15 @@ $sample = Parse '{"hooks":{"Stop":[{"command":"a && b <c> it''s"}]},"n":1.5,"e":
 $pretty = Format-Json -Value $sample
 Assert-Equal (ConvertTo-CompactJson $sample) (ConvertTo-CompactJson (Parse $pretty)) 'pretty output reads back the same'
 
+$inner = Parse '{"x":[1,2]}'
+$outer = New-Dict
+$outer['wrapped'] = [psobject]$inner
+$outer['list'] = @([psobject]'a', [psobject]2)
+Assert-Equal '{"wrapped":{"x":[1,2]},"list":["a",2]}' (ConvertTo-CompactJson ([psobject]$outer)) 'wrapped PowerShell objects are written as plain JSON'
+
+$tricky = Parse '{"s":"tab\there \"quoted\" back\\slash \\u0026 line\nend"}'
+Assert-Equal (ConvertTo-CompactJson $tricky) (ConvertTo-CompactJson (Parse (ConvertTo-CompactJson $tricky))) 'escaped characters survive a round trip'
+
 if ($script:Failures -gt 0) {
     Write-Host "$script:Failures test(s) failed" -ForegroundColor Red
     exit 1
