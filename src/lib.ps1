@@ -678,16 +678,6 @@ function Install-Files {
     New-Item -ItemType Directory -Path $script:BinDir -Force | Out-Null
     Copy-Item -Path (Join-Path $script:SourceDir '*.ps1') -Destination $script:InstallDir -Force
     Copy-Item -Path (Join-Path $script:SourceDir 'bin\*.cmd') -Destination $script:BinDir -Force
-    $desktopSource = Join-Path $script:InstallDir 'desktop'
-    New-Item -ItemType Directory -Path $desktopSource -Force | Out-Null
-    Copy-Item -Path (Join-Path $script:SourceDir 'desktop\*.cmd') -Destination $desktopSource -Force
-}
-
-function Install-DesktopFiles {
-    $desktop = [Environment]::GetFolderPath('Desktop')
-    foreach ($file in $script:DesktopFiles) {
-        Copy-Item -LiteralPath (Join-Path (Join-Path $script:InstallDir 'desktop') $file) -Destination (Join-Path $desktop $file) -Force
-    }
 }
 
 function Remove-DesktopFiles {
@@ -855,7 +845,7 @@ function Invoke-Setup([switch]$Force) {
     $statusLine = Add-StatusLine $config
     Invoke-Sync $config
     Add-BinToPath
-    Install-DesktopFiles
+    Remove-DesktopFiles
     $task = Register-SyncTask
     $active = Get-ActiveAccount $config
     if ($null -eq $active) { $active = $config.profiles[0] }
@@ -870,7 +860,7 @@ function Invoke-Setup([switch]$Force) {
         Write-Host ''
         Write-Host 'One more step: open a new terminal, run claude-org, then type /login and sign in with your org account.'
     }
-    Write-Host 'Switch accounts with the two files on your Desktop.'
+    Write-Host 'Switch accounts with the two Switch files next to setup.cmd.'
 }
 
 function Invoke-Switch([string]$Name) {

@@ -22,7 +22,7 @@ Setup backs up your current data to `%USERPROFILE%\.claude-account-sync\backups`
 
 ## Switching
 
-Double-click **Switch to Personal** or **Switch to Org** on your Desktop. Then restart VS Code, Zed and any open terminals.
+Double-click `Switch to Personal.cmd` or `Switch to Org.cmd` next to `setup.cmd`. Then restart VS Code, Zed and any open terminals.
 
 Claude Desktop keeps its own sign-in, so sign out and back in there if you want it on the same account.
 
@@ -32,7 +32,7 @@ From a terminal you can also run:
 |---|---|
 | `claude-personal` | Start Claude Code as personal, whatever the active account is |
 | `claude-org` | Start Claude Code as org, whatever the active account is |
-| `claude-account switch org` | Same as the Desktop file |
+| `claude-account switch org` | Same as the Switch files |
 | `claude-account status` | Show the active account and who is logged in |
 | `claude-account sync` | Sync right now |
 
